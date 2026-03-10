@@ -1,0 +1,3 @@
+timestamp=2026-03-10T10:42:47.183936
+label=face_not_visible_timeout
+reason=no_face_after_warning

@@ -1,0 +1,3 @@
+timestamp=2026-03-09T20:15:15.054413
+label=animal_cat
+mode=yolo_fallback, yolo=cat

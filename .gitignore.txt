@@ -1,0 +1,40 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+.env
+
+# AI Models & Data
+*.pt
+models/
+animal_models/
+animal_dataset/
+
+# Personal/Event Data (Privacy)
+events/
+known_faces/
+known_animals/
+
+# Accidental files from 'ls'
+AppConfig
+bool
+FACE_MATCH_THRESHOLD
+
+# IDE/System
+.vscode/
+.idea/
+.DS_Store
+
+# Ignore all image formats
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.gif
+*.tiff
+*.webp
+
+# Ignore any images inside subfolders as well
+**/*.jpg
+**/*.jpeg
+**/*.png

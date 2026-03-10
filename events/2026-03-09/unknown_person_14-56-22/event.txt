@@ -1,0 +1,3 @@
+timestamp=2026-03-09T14:56:22.070274
+label=unknown_person
+score=0.070
