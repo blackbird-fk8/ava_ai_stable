@@ -1,0 +1,3 @@
+event_label=unknown_person
+time=2026-03-31T21:08:31.384864
+face_score=0.019

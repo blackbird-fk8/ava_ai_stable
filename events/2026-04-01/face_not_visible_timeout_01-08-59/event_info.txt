@@ -1,0 +1,3 @@
+event_label=face_not_visible_timeout
+time=2026-04-01T01:09:00.029039
+reason=no_face_after_warning
