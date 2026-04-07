@@ -1,3 +1,9 @@
+"""
+Weed Detection and Spray Control Backend
+
+Monitors a camera feed for weeds and controls a spray relay in defined zones.
+"""
+
 import sys
 import os
 import time
@@ -5,12 +11,20 @@ import json
 from datetime import datetime
 import cv2
 
-BASE_DIR = r"C:\scare_ai"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
 from core.relay_controller import RelayController
-from ultralytics import YOLO
+from core.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+try:
+    from ultralytics import YOLO
+except ImportError:
+    logger.error("ultralytics not installed. Install with: pip install ultralytics")
+    YOLO = None
 
 STOP_FILE = os.path.join(BASE_DIR, "stop_signal.txt")
 STATUS_FILE = os.path.join(BASE_DIR, "status.txt")
@@ -46,7 +60,7 @@ def load_ui_config(path: str):
             if isinstance(data, dict):
                 cfg.update(data)
         except Exception as e:
-            print(f"[WARN] Failed to read config: {e}")
+            logger.warning(f"Failed to read config: {e}")
     return cfg
 
 
@@ -131,7 +145,7 @@ def save_weed_event(frame, detections_text: str):
         f.write(f"time={datetime.now().isoformat()}\n")
         f.write(f"details={detections_text}\n")
 
-    print(f"[INFO] Saved weed event -> {event_folder}")
+    logger.info(f"Saved weed event -> {event_folder}")
 
 
 def draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, detection_count, weed_count, crop_count, fps_text, info_text, info_color):
@@ -158,7 +172,7 @@ def main():
 
     cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
     if not cap.isOpened():
-        print("[ERROR] Could not open camera.")
+        logger.error(" Could not open camera.")
         return
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
@@ -168,21 +182,21 @@ def main():
     relay = RelayController(RELAY_PORT, RELAY_BAUD)
     relay.connect()
 
-    print(f"[INFO] Camera: {CAMERA_INDEX} {CAMERA_WIDTH}x{CAMERA_HEIGHT}")
-    print(f"[INFO] Weed settings: conf={CONF_THRESHOLD:.2f}, skip={FRAME_SKIP}, cooldown={SPRAY_COOLDOWN:.1f}, duration={SPRAY_DURATION:.1f}")
-    print(f"[INFO] Zone: x=({ZONE_X_MIN:.2f}, {ZONE_X_MAX:.2f}) y=({ZONE_Y_MIN:.2f}, {ZONE_Y_MAX:.2f})")
+    logger.info(f"Camera: {CAMERA_INDEX} {CAMERA_WIDTH}x{CAMERA_HEIGHT}")
+    logger.info(f"Weed settings: conf={CONF_THRESHOLD:.2f}, skip={FRAME_SKIP}, cooldown={SPRAY_COOLDOWN:.1f}, duration={SPRAY_DURATION:.1f}")
+    logger.info(f"Zone: x=({ZONE_X_MIN:.2f}, {ZONE_X_MAX:.2f}) y=({ZONE_Y_MIN:.2f}, {ZONE_Y_MAX:.2f})")
 
     model = None
     class_names = {}
 
     if os.path.exists(MODEL_PATH):
-        print("[INFO] Loading weed detection model...")
+        logger.info(" Loading weed detection model...")
         model = YOLO(MODEL_PATH)
         class_names = model.names
-        print(f"[INFO] Classes: {class_names}")
+        logger.info(f"Classes: {class_names}")
     else:
-        print(f"[WARN] Model not found: {MODEL_PATH}")
-        print("[WARN] Running fallback demo mode.")
+        logger.warning(f"Model not found: {MODEL_PATH}")
+        logger.warning("Running fallback demo mode.")
 
     last_spray_time = 0.0
     frame_count = 0
@@ -192,12 +206,12 @@ def main():
     try:
         while True:
             if os.path.exists(STOP_FILE):
-                print("[INFO] Stop signal received.")
+                logger.info(" Stop signal received.")
                 break
 
             ret, frame = cap.read()
             if not ret:
-                print("[ERROR] Failed to read frame.")
+                logger.error(" Failed to read frame.")
                 break
 
             frame_h, frame_w = frame.shape[:2]
@@ -264,7 +278,7 @@ def main():
                 cv2.circle(frame, (cx, cy), 4, color, -1)
                 cv2.putText(frame, f"{label} {conf:.2f}", (x1, max(20, y1 - 10)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                print(f"[DETECT] {label} conf={conf:.2f} in_zone={in_zone}")
+                logger.debug(f" {label} conf={conf:.2f} in_zone={in_zone}")
 
             now = time.time()
             infer_dt = max(now - last_infer_time, 1e-6)
@@ -280,7 +294,7 @@ def main():
                 info_color = (0, 0, 255)
 
                 if time.time() - last_spray_time > SPRAY_COOLDOWN:
-                    print("[ACTION] Weed in zone -> spraying")
+                    logger.info("Weed in zone -> spraying")
                     write_status("WEED:SPRAYING")
                     relay.strobe_on()
                     time.sleep(SPRAY_DURATION)

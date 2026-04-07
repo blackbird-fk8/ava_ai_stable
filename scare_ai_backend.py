@@ -1,3 +1,10 @@
+"""
+SCARE AI - Smart Camera Alert Response Engine
+
+Main backend process for real-time object detection and alarm control.
+Monitors a camera feed for animals, unknown persons, and known faces using ML models.
+"""
+
 import os
 import json
 import time
@@ -8,6 +15,9 @@ from openvino import Core
 
 from core.relay_controller import RelayController
 from core.event_logger import ensure_dir, run_alarm_event, save_event_images
+from core.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 STOP_FILE = "stop_signal.txt"
 BASE_DIR = r"C:\scare_ai"
@@ -41,7 +51,16 @@ DEFAULTS = {
 }
 
 
-def load_ui_config(path: str):
+def load_ui_config(path: str) -> dict:
+    """
+    Load configuration from JSON file or use defaults.
+
+    Args:
+        path: Path to configuration JSON file
+
+    Returns:
+        Dictionary with configuration values
+    """
     cfg = DEFAULTS.copy()
     if os.path.exists(path):
         try:
@@ -49,10 +68,13 @@ def load_ui_config(path: str):
                 data = json.load(f)
             if isinstance(data, dict):
                 cfg.update(data)
-        except Exception as e:
-            print(f"[WARN] Failed to read config: {e}")
+            logger.info(f"Configuration loaded from {path}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON in config file {path}: {e}. Using defaults.")
+        except IOError as e:
+            logger.warning(f"Failed to read config file {path}: {e}. Using defaults.")
     else:
-        print(f"[WARN] Config not found, using defaults: {path}")
+        logger.warning(f"Config file not found at {path}. Using defaults.")
     return cfg
 
 
@@ -103,11 +125,11 @@ ANIMAL_CLASSIFIER_MODEL = os.path.join(
 ALLOWED_ANIMAL_CLASSES = {"allowed_dog", "farm_cat", "cow", "horse"}
 ALARM_ANIMAL_CLASSES = {"pest_bird", "coyote", "stray_dog", "unknown_animal"}
 
-print("[INFO] Active mode:", ACTIVE_MODE)
-print("[INFO] Config path:", CONFIG_PATH)
-print("[INFO] Camera:", CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT)
-print("[INFO] Thresholds:", FACE_MATCH_THRESHOLD, ANIMAL_CLASSIFIER_CONFIDENCE)
-print("[INFO] Relay:", RELAY_PORT, RELAY_BAUD)
+logger.info(f"Active mode: {ACTIVE_MODE}")
+logger.info(f"Config path: {CONFIG_PATH}")
+logger.info(f"Camera: {CAMERA_INDEX} {FRAME_WIDTH}x{FRAME_HEIGHT}")
+logger.info(f"Thresholds: face_match={FACE_MATCH_THRESHOLD}, animal_conf={ANIMAL_CLASSIFIER_CONFIDENCE}")
+logger.info(f"Relay: {RELAY_PORT} @ {RELAY_BAUD} baud")
 
 core = Core()
 face_det = core.compile_model(FACE_DET_MODEL, "CPU")
@@ -116,110 +138,215 @@ face_det_output = face_det.output(0)
 face_reid_output = face_reid.output(0)
 
 
-def ensure_live_frame_dir():
+def ensure_live_frame_dir() -> None:
+    """Create live frame directory if it doesn't exist."""
     try:
         os.makedirs(LIVE_FRAME_DIR, exist_ok=True)
-    except Exception:
-        pass
+    except OSError as e:
+        logger.error(f"Failed to create live frame directory {LIVE_FRAME_DIR}: {e}")
 
 
-def write_live_frame(frame):
+def write_live_frame(frame) -> bool:
+    """
+    Write current frame to live view file.
+
+    Args:
+        frame: OpenCV image frame
+
+    Returns:
+        True if successful, False otherwise
+    """
     try:
         ensure_live_frame_dir()
-        cv2.imwrite(LIVE_FRAME_PATH, frame)
-    except Exception:
-        pass
+        if frame is not None and cv2.imwrite(LIVE_FRAME_PATH, frame):
+            return True
+        else:
+            logger.debug("Failed to write live frame")
+            return False
+    except Exception as e:
+        logger.warning(f"Error writing live frame: {e}")
+        return False
 
 
-def clear_live_frame():
+def clear_live_frame() -> bool:
+    """
+    Delete live view file.
+
+    Returns:
+        True if successful or file didn't exist, False on error
+    """
     try:
         if os.path.exists(LIVE_FRAME_PATH):
             os.remove(LIVE_FRAME_PATH)
-    except Exception:
-        pass
+        return True
+    except OSError as e:
+        logger.warning(f"Failed to delete live frame: {e}")
+        return False
 
 
-def write_status(value: str):
+def write_status(value: str) -> bool:
+    """
+    Write status to status file for UI monitoring.
+
+    Args:
+        value: Status value to write
+
+    Returns:
+        True if successful, False otherwise
+    """
     try:
         with open(STATUS_FILE, "w", encoding="utf-8") as f:
             f.write(f"SCARE:{value}")
-    except Exception:
-        pass
+        return True
+    except IOError as e:
+        logger.warning(f"Failed to write status: {e}")
+        return False
 
 
-def preprocess(image, size):
+def preprocess(image, size: tuple) -> np.ndarray:
+    """
+    Preprocess image for face detection model.
+
+    Resizes and transposes image to model input format: (1, 3, H, W)
+
+    Args:
+        image: Input image (H, W, 3)
+        size: Target size (width, height)
+
+    Returns:
+        Preprocessed image as float32 numpy array
+    """
     w, h = size
     img = cv2.resize(image, (w, h))
     img = img.transpose(2, 0, 1)[None, ...]
     return img.astype(np.float32)
 
 
-def cosine_similarity(a, b):
+def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    """
+    Compute cosine similarity between two vectors.
+
+    Args:
+        a: First vector
+        b: Second vector
+
+    Returns:
+        Cosine similarity score
+    """
     return float(np.dot(a, b))
 
 
-def detect_faces(frame, conf_thresh=0.6):
-    ih, iw = frame.shape[:2]
-    inp = preprocess(frame, (300, 300))
-    out = face_det([inp])[face_det_output]
-    faces = []
-    for det in out[0][0]:
-        conf = float(det[2])
-        if conf < conf_thresh:
-            continue
-        x1 = max(0, int(det[3] * iw))
-        y1 = max(0, int(det[4] * ih))
-        x2 = min(iw, int(det[5] * iw))
-        y2 = min(ih, int(det[6] * ih))
-        if x2 > x1 and y2 > y1:
-            faces.append((x1, y1, x2, y2, conf))
-    return faces
+def detect_faces(frame, conf_thresh: float = 0.6) -> list:
+    """
+    Detect faces in a frame using OpenVINO face detection model.
+
+    Args:
+        frame: Input image frame
+        conf_thresh: Confidence threshold for detections (default: 0.6)
+
+    Returns:
+        List of face bounding boxes as (x1, y1, x2, y2, confidence)
+    """
+    try:
+        ih, iw = frame.shape[:2]
+        inp = preprocess(frame, (300, 300))
+        out = face_det([inp])[face_det_output]
+        faces = []
+        for det in out[0][0]:
+            conf = float(det[2])
+            if conf < conf_thresh:
+                continue
+            x1 = max(0, int(det[3] * iw))
+            y1 = max(0, int(det[4] * ih))
+            x2 = min(iw, int(det[5] * iw))
+            y2 = min(ih, int(det[6] * ih))
+            if x2 > x1 and y2 > y1:
+                faces.append((x1, y1, x2, y2, conf))
+        return faces
+    except Exception as e:
+        logger.warning(f"Face detection failed: {e}")
+        return []
 
 
-def get_face_embedding(face_img):
-    img = cv2.resize(face_img, (128, 128))
-    inp = img.transpose(2, 0, 1)[None, ...].astype(np.float32)
-    emb = face_reid([inp])[face_reid_output]
-    emb = np.squeeze(emb)
-    norm = np.linalg.norm(emb)
-    if norm > 0:
-        emb = emb / norm
-    return emb
+def get_face_embedding(face_img: np.ndarray) -> np.ndarray:
+    """
+    Generate normalized face embedding using ReID model.
+
+    Args:
+        face_img: Cropped face image
+
+    Returns:
+        Normalized embedding vector
+    """
+    try:
+        img = cv2.resize(face_img, (128, 128))
+        inp = img.transpose(2, 0, 1)[None, ...].astype(np.float32)
+        emb = face_reid([inp])[face_reid_output]
+        emb = np.squeeze(emb)
+        norm = np.linalg.norm(emb)
+        if norm > 0:
+            emb = emb / norm
+        return emb
+    except Exception as e:
+        logger.error(f"Failed to generate face embedding: {e}")
+        return np.array([])
 
 
-def build_face_gallery():
+def build_face_gallery() -> dict:
+    """
+    Load known faces and build embedding gallery.
+
+    Scans KNOWN_FACES_DIR for subdirectories (one per person) and loads face images to build embeddings.
+
+    Returns:
+        Dictionary mapping person names to averaged embeddings
+    """
     gallery = {}
     if not os.path.isdir(KNOWN_FACES_DIR):
+        logger.warning(f"Known faces directory not found: {KNOWN_FACES_DIR}")
         return gallery
 
-    for person_name in os.listdir(KNOWN_FACES_DIR):
-        person_dir = os.path.join(KNOWN_FACES_DIR, person_name)
-        if not os.path.isdir(person_dir):
-            continue
-
-        embeddings = []
-        for fname in os.listdir(person_dir):
-            path = os.path.join(person_dir, fname)
-            img = cv2.imread(path)
-            if img is None:
+    try:
+        for person_name in os.listdir(KNOWN_FACES_DIR):
+            person_dir = os.path.join(KNOWN_FACES_DIR, person_name)
+            if not os.path.isdir(person_dir):
                 continue
 
-            faces = detect_faces(img)
-            if not faces:
-                continue
+            embeddings = []
+            for fname in os.listdir(person_dir):
+                path = os.path.join(person_dir, fname)
+                try:
+                    img = cv2.imread(path)
+                    if img is None:
+                        logger.debug(f"Failed to read image: {path}")
+                        continue
 
-            faces.sort(key=lambda x: (x[2] - x[0]) * (x[3] - x[1]), reverse=True)
-            x1, y1, x2, y2, _ = faces[0]
-            face_crop = img[y1:y2, x1:x2]
-            embeddings.append(get_face_embedding(face_crop))
-            print(f"[INFO] Loaded {person_name}: {fname}")
+                    faces = detect_faces(img)
+                    if not faces:
+                        logger.debug(f"No faces detected in {fname}")
+                        continue
 
-        if embeddings:
-            avg = np.mean(np.stack(embeddings), axis=0)
-            avg = avg / np.linalg.norm(avg)
-            gallery[person_name] = avg
+                    faces.sort(key=lambda x: (x[2] - x[0]) * (x[3] - x[1]), reverse=True)
+                    x1, y1, x2, y2, _ = faces[0]
+                    face_crop = img[y1:y2, x1:x2]
+                    embeddings.append(get_face_embedding(face_crop))
+                    logger.debug(f"Loaded {person_name}: {fname}")
+                except Exception as e:
+                    logger.warning(f"Error loading face image {path}: {e}")
+                    continue
 
-    return gallery
+            if embeddings:
+                avg = np.mean(np.stack(embeddings), axis=0)
+                avg = avg / np.linalg.norm(avg)
+                gallery[person_name] = avg
+                logger.info(f"Built gallery for {person_name} with {len(embeddings)} images")
+
+        logger.info(f"Face gallery loaded: {len(gallery)} people")
+        return gallery
+
+    except Exception as e:
+        logger.error(f"Error building face gallery: {e}")
+        return gallery
 
 
 def identify_face(frame, gallery):
@@ -245,11 +372,21 @@ def identify_face(frame, gallery):
     return (x1, y1, x2, y2), "UNKNOWN", best_score
 
 
-def load_animal_classifier():
+def load_animal_classifier() -> YOLO:
+    """
+    Load animal classifier model.
+
+    Returns:
+        YOLO model if trained classifier exists, None for YOLO fallback
+    """
     if os.path.exists(ANIMAL_CLASSIFIER_MODEL):
-        print(f"[INFO] Loading animal classifier: {ANIMAL_CLASSIFIER_MODEL}")
-        return YOLO(ANIMAL_CLASSIFIER_MODEL)
-    print("[INFO] No trained animal classifier found. Using YOLO fallback for animals.")
+        try:
+            logger.info(f"Loading animal classifier: {ANIMAL_CLASSIFIER_MODEL}")
+            return YOLO(ANIMAL_CLASSIFIER_MODEL)
+        except Exception as e:
+            logger.error(f"Failed to load animal classifier: {e}")
+            return None
+    logger.info("No trained animal classifier found. Using YOLO fallback for animals.")
     return None
 
 
@@ -309,7 +446,7 @@ def decide_animal_action(yolo_class, crop, classifier_model):
 
 def maybe_save_event_only(frame, event_label, cap=None, extra_text=None):
     if not ENABLE_EVENT_PHOTOS:
-        print(f"[INFO] Event photos disabled: {event_label}")
+        logger.info(f"Event photos disabled: {event_label}")
         return
 
     save_event_images(
@@ -329,7 +466,7 @@ def main():
     clear_live_frame()
 
     face_gallery = build_face_gallery()
-    print("[INFO] Known people:", list(face_gallery.keys()))
+    logger.info(f"Known people: {list(face_gallery.keys())}")
 
     detector_model = YOLO(YOLO_MODEL)
     animal_classifier = load_animal_classifier()
@@ -352,7 +489,7 @@ def main():
         time.sleep(0.5)
 
     if cap is None or not cap.isOpened():
-        print("[ERROR] Could not open camera after retries.")
+        logger.error("Could not open camera after retries.")
         relay.close()
         clear_live_frame()
         return
@@ -374,13 +511,13 @@ def main():
     try:
         while True:
             if os.path.exists(STOP_FILE):
-                print("[INFO] Stop signal received.")
+                logger.info("Stop signal received.")
                 break
 
             now = time.time()
             ret, frame = cap.read()
             if not ret:
-                print("[ERROR] Failed to read frame.")
+                logger.error("Failed to read frame.")
                 break
 
             annotated = frame.copy()
@@ -642,7 +779,7 @@ def main():
                         extra_text=event_text,
                     )
                 else:
-                    print(f"[ALARM] {event_label}")
+                    logger.warning(f"{event_label}")
                     relay.alarm_on()
                     time.sleep(ALARM_DURATION)
                     relay.alarm_off()

@@ -8,7 +8,7 @@ from dataclasses import dataclass, asdict
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal, QObject, QSize, QProcess, QProcessEnvironment
-from PySide6.QtGui import QImage, QPixmap, QIcon, QTextCursor
+from PySide6.QtGui import QImage, QPixmap, QIcon, QTextCursor, QAction
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -49,7 +49,7 @@ NOTES_FILE = os.path.join(CONFIG_DIR, "ava_operator_notes.txt")
 LIVE_FRAME_DIR = os.path.join(BASE_DIR, "status_frames")
 LIVE_FRAME_PATH = os.path.join(LIVE_FRAME_DIR, "live_view.jpg")
 
-AVA_ALERT_BACKEND = os.path.join(BASE_DIR, "scare_ai_v4.py")
+AVA_ALERT_BACKEND = os.path.join(BASE_DIR, "scare_ai_backend.py")
 FOOD_QUALITY_BACKEND = os.path.join(BASE_DIR, "backends", "food_quality_backend.py")
 WEED_SPRAYER_BACKEND = os.path.join(BASE_DIR, "backends", "weed_sprayer_backend.py")
 
@@ -1419,7 +1419,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-def start_engine(self):
+    def start_engine(self):
         self.apply_settings()
         self.clear_engine_preview_file()
         if self.camera_running():
