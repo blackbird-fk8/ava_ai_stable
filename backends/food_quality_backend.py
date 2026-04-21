@@ -16,6 +16,7 @@ if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
 from core.logger import setup_logger
+from core.paths import DEFAULT_CONFIG_PATH, FOOD_MODEL_PATH, LIVE_FRAME_DIR, LIVE_FRAME_PATH, STATUS_FILE, STOP_FILE
 
 logger = setup_logger(__name__)
 
@@ -25,14 +26,7 @@ except ImportError:
     logger.error("ultralytics not installed. Install with: pip install ultralytics")
     YOLO = None
 
-DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "scare_ai_ui_config.json")
 CONFIG_PATH = os.environ.get("SCARE_AI_CONFIG", DEFAULT_CONFIG_PATH)
-
-STOP_FILE = os.path.join(BASE_DIR, "stop_signal.txt")
-STATUS_FILE = os.path.join(BASE_DIR, "status.txt")
-LIVE_FRAME_DIR = os.path.join(BASE_DIR, "status_frames")
-LIVE_FRAME_PATH = os.path.join(LIVE_FRAME_DIR, "live_view.jpg")
-FOOD_MODEL_PATH = os.path.join(BASE_DIR, "food_models", "food_quality_v1", "weights", "best.pt")
 
 DEFAULTS = {
     "camera_index": 0,

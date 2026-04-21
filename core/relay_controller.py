@@ -1,20 +1,30 @@
-"""
-Serial relay controller for SCARE AI alarm hardware.
-
-Controls strobe lights and horn via serial commands to a relay module.
-"""
+"""Serial relay controller for SCARE AI alarm hardware."""
 
 import logging
 import time
+from typing import Optional
+
 import serial
 
 logger = logging.getLogger(__name__)
+
+STROBE_ON_COMMAND = b"\xA0\x01\x01\xA2"
+STROBE_OFF_COMMAND = b"\xA0\x01\x00\xA1"
+HORN_ON_COMMAND = b"\xA0\x02\x01\xA3"
+HORN_OFF_COMMAND = b"\xA0\x02\x00\xA2"
 
 
 class RelayController:
     """Controls alarm hardware (strobe and horn) via serial relay module."""
 
-    def __init__(self, port: str, baud: int = 9600, timeout: float = 1.0) -> None:
+    def __init__(
+        self,
+        port: str,
+        baud: int = 9600,
+        timeout: float = 1.0,
+        enable_strobe: bool = True,
+        enable_horn: bool = True,
+    ) -> None:
         """
         Initialize relay controller.
 
@@ -22,12 +32,29 @@ class RelayController:
             port: Serial port name (e.g., 'COM5')
             baud: Baud rate (default: 9600)
             timeout: Serial timeout in seconds (default: 1.0)
+            enable_strobe: Whether strobe commands should activate output 1
+            enable_horn: Whether horn commands should activate output 2
         """
         self.port = port
         self.baud = baud
         self.timeout = timeout
-        self.relay = None
-        logger.info(f"RelayController initialized for {port} at {baud} baud")
+        self.enable_strobe = enable_strobe
+        self.enable_horn = enable_horn
+        self.relay: Optional[serial.Serial] = None
+        logger.info(
+            "RelayController initialized for %s at %s baud (strobe=%s, horn=%s)",
+            port,
+            baud,
+            enable_strobe,
+            enable_horn,
+        )
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     def connect(self) -> bool:
         """
@@ -52,6 +79,7 @@ class RelayController:
             return False
         except Exception as e:
             logger.error(f"Unexpected error connecting to relay: {e}")
+            self.relay = None
             return False
 
     def close(self) -> None:
@@ -73,6 +101,11 @@ class RelayController:
             logger.warning(f"Error closing relay connection: {e}")
         finally:
             self.relay = None
+
+    @property
+    def is_connected(self) -> bool:
+        """Return True when a serial connection is open."""
+        return self.relay is not None and self.relay.is_open
 
     def _write(self, data: bytes, description: str = "") -> bool:
         """
@@ -102,22 +135,32 @@ class RelayController:
 
     def strobe_on(self) -> bool:
         """Turn on strobe light. Returns True if successful."""
-        return self._write(b'\xA0\x01\x01\xA2', "STROBE_ON")
+        if not self.enable_strobe:
+            logger.debug("Skipping STROBE_ON because strobe output is disabled")
+            return True
+        return self._write(STROBE_ON_COMMAND, "STROBE_ON")
 
     def strobe_off(self) -> bool:
         """Turn off strobe light. Returns True if successful."""
-        return self._write(b'\xA0\x01\x00\xA1', "STROBE_OFF")
+        return self._write(STROBE_OFF_COMMAND, "STROBE_OFF")
 
     def horn_on(self) -> bool:
         """Turn on horn. Returns True if successful."""
-        return self._write(b'\xA0\x02\x01\xA3', "HORN_ON")
+        if not self.enable_horn:
+            logger.debug("Skipping HORN_ON because horn output is disabled")
+            return True
+        return self._write(HORN_ON_COMMAND, "HORN_ON")
 
     def horn_off(self) -> bool:
         """Turn off horn. Returns True if successful."""
-        return self._write(b'\xA0\x02\x00\xA2', "HORN_OFF")
+        return self._write(HORN_OFF_COMMAND, "HORN_OFF")
 
     def alarm_on(self) -> bool:
         """Turn on full alarm (strobe + horn). Returns True if both successful."""
+        if not self.enable_strobe and not self.enable_horn:
+            logger.debug("Skipping ALARM_ON because all outputs are disabled")
+            return True
+
         strobe_ok = self.strobe_on()
         horn_ok = self.horn_on()
         return strobe_ok and horn_ok

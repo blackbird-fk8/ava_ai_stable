@@ -15,6 +15,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
+from core.paths import DEFAULT_CONFIG_PATH, EVENTS_DIR, LIVE_FRAME_DIR, LIVE_FRAME_PATH, STATUS_FILE, STOP_FILE, WEED_MODEL_PATH
 from core.relay_controller import RelayController
 from core.logger import setup_logger
 
@@ -26,13 +27,8 @@ except ImportError:
     logger.error("ultralytics not installed. Install with: pip install ultralytics")
     YOLO = None
 
-STOP_FILE = os.path.join(BASE_DIR, "stop_signal.txt")
-STATUS_FILE = os.path.join(BASE_DIR, "status.txt")
-LIVE_FRAME_DIR = os.path.join(BASE_DIR, "status_frames")
-LIVE_FRAME_PATH = os.path.join(LIVE_FRAME_DIR, "live_view.jpg")
-MODEL_PATH = os.path.join(BASE_DIR, "weed_models", "weed_detector_v1", "weights", "best.pt")
-EVENTS_DIR = os.path.join(BASE_DIR, "events")
-CONFIG_PATH = os.path.join(BASE_DIR, "configs", "scare_ai_ui_config.json")
+MODEL_PATH = WEED_MODEL_PATH
+CONFIG_PATH = DEFAULT_CONFIG_PATH
 
 DEFAULTS = {
     "camera_index": 0,
@@ -68,6 +64,7 @@ CFG = load_ui_config(CONFIG_PATH)
 
 RELAY_PORT = str(CFG.get("relay_port", "COM5"))
 RELAY_BAUD = int(CFG.get("relay_baud", 9600))
+ENABLE_STROBE = bool(CFG.get("enable_strobe", True))
 
 CONF_THRESHOLD = float(CFG.get("weed_conf_threshold", 0.15))
 INFER_WIDTH = 640
@@ -179,7 +176,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-    relay = RelayController(RELAY_PORT, RELAY_BAUD)
+    relay = RelayController(RELAY_PORT, RELAY_BAUD, enable_strobe=ENABLE_STROBE, enable_horn=False)
     relay.connect()
 
     logger.info(f"Camera: {CAMERA_INDEX} {CAMERA_WIDTH}x{CAMERA_HEIGHT}")

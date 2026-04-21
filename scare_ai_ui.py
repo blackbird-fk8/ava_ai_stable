@@ -32,26 +32,26 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QScrollArea,
 )
+from core.paths import (
+    ANIMAL_DATASET_DIR,
+    ANIMAL_MODELS_DIR,
+    AVA_ALERT_BACKEND,
+    BASE_DIR,
+    CONFIG_DIR,
+    DEFAULT_CONFIG_PATH,
+    EVENTS_DIR,
+    FOOD_QUALITY_BACKEND,
+    KNOWN_FACES_DIR,
+    LIVE_FRAME_DIR,
+    LIVE_FRAME_PATH,
+    NOTES_FILE,
+    STATUS_FILE,
+    STOP_FILE,
+    WEED_SPRAYER_BACKEND,
+)
 
 APP_TITLE = "A.V.A. Control Panel"
 APP_SUBTITLE = "Agriculture • Video • AI"
-
-BASE_DIR = r"C:\scare_ai"
-CONFIG_DIR = os.path.join(BASE_DIR, "configs")
-DEFAULT_CONFIG_PATH = os.path.join(CONFIG_DIR, "scare_ai_ui_config.json")
-KNOWN_FACES_DIR = os.path.join(BASE_DIR, "known_faces")
-ANIMAL_DATASET_DIR = os.path.join(BASE_DIR, "animal_dataset")
-ANIMAL_MODELS_DIR = os.path.join(BASE_DIR, "animal_models")
-EVENTS_DIR = os.path.join(BASE_DIR, "events")
-STOP_FILE = os.path.join(BASE_DIR, "stop_signal.txt")
-STATUS_FILE = os.path.join(BASE_DIR, "status.txt")
-NOTES_FILE = os.path.join(CONFIG_DIR, "ava_operator_notes.txt")
-LIVE_FRAME_DIR = os.path.join(BASE_DIR, "status_frames")
-LIVE_FRAME_PATH = os.path.join(LIVE_FRAME_DIR, "live_view.jpg")
-
-AVA_ALERT_BACKEND = os.path.join(BASE_DIR, "scare_ai_backend.py")
-FOOD_QUALITY_BACKEND = os.path.join(BASE_DIR, "backends", "food_quality_backend.py")
-WEED_SPRAYER_BACKEND = os.path.join(BASE_DIR, "backends", "weed_sprayer_backend.py")
 
 RELAY1_ON = bytes.fromhex("A0 01 01 A2")
 RELAY1_OFF = bytes.fromhex("A0 01 00 A1")

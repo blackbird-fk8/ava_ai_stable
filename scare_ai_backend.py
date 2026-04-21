@@ -13,19 +13,25 @@ import numpy as np
 from ultralytics import YOLO
 from openvino import Core
 
+from core.paths import (
+    ANIMAL_CLASSIFIER_MODEL,
+    DEFAULT_CONFIG_PATH,
+    EVENTS_DIR,
+    FACE_DET_MODEL,
+    FACE_REID_MODEL,
+    KNOWN_FACES_DIR,
+    LIVE_FRAME_DIR,
+    LIVE_FRAME_PATH,
+    STATUS_FILE,
+    STOP_FILE,
+    YOLO_MODEL,
+)
 from core.relay_controller import RelayController
 from core.event_logger import ensure_dir, run_alarm_event, save_event_images
 from core.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-STOP_FILE = "stop_signal.txt"
-BASE_DIR = r"C:\scare_ai"
-STATUS_FILE = os.path.join(BASE_DIR, "status.txt")
-LIVE_FRAME_DIR = os.path.join(BASE_DIR, "status_frames")
-LIVE_FRAME_PATH = os.path.join(LIVE_FRAME_DIR, "live_view.jpg")
-
-DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "scare_ai_ui_config.json")
 CONFIG_PATH = os.environ.get("SCARE_AI_CONFIG", DEFAULT_CONFIG_PATH)
 ACTIVE_MODE = os.environ.get("SCARE_AI_ACTIVE_MODE", "Scare AI")
 
@@ -98,29 +104,7 @@ ENABLE_EVENT_PHOTOS = bool(CFG.get("enable_event_photos", True))
 RELAY_PORT = str(CFG.get("relay_port", "COM5"))
 RELAY_BAUD = int(CFG.get("relay_baud", 9600))
 
-YOLO_MODEL = "yolov8n.pt"
 TARGET_ANIMALS = {"bird", "dog", "cat"}
-KNOWN_FACES_DIR = os.path.join(BASE_DIR, "known_faces")
-EVENTS_DIR = os.path.join(BASE_DIR, "events")
-FACE_DET_MODEL = os.path.join(
-    BASE_DIR,
-    "models",
-    "face-detection-retail-0004",
-    "face-detection-retail-0004.xml",
-)
-FACE_REID_MODEL = os.path.join(
-    BASE_DIR,
-    "models",
-    "face-reidentification-retail-0095",
-    "face-reidentification-retail-0095.xml",
-)
-ANIMAL_CLASSIFIER_MODEL = os.path.join(
-    BASE_DIR,
-    "animal_models",
-    "animal_classifier_v1",
-    "weights",
-    "best.pt",
-)
 
 ALLOWED_ANIMAL_CLASSES = {"allowed_dog", "farm_cat", "cow", "horse"}
 ALARM_ANIMAL_CLASSES = {"pest_bird", "coyote", "stray_dog", "unknown_animal"}
@@ -476,7 +460,12 @@ def main():
     if os.path.exists(STATUS_FILE):
         os.remove(STATUS_FILE)
 
-    relay = RelayController(RELAY_PORT, RELAY_BAUD)
+    relay = RelayController(
+        RELAY_PORT,
+        RELAY_BAUD,
+        enable_strobe=ENABLE_STROBE,
+        enable_horn=ENABLE_HORN,
+    )
     relay.connect()
 
     cap = None
