@@ -2,9 +2,15 @@
 
 import logging
 import time
+from types import SimpleNamespace
 from typing import Optional
 
-import serial
+try:
+    import serial  # type: ignore[import-not-found]
+    SERIAL_INSTALLED = True
+except ImportError:
+    serial = SimpleNamespace(Serial=None, SerialException=Exception)
+    SERIAL_INSTALLED = False
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +72,10 @@ class RelayController:
         if self.relay is not None and self.relay.is_open:
             logger.debug("Already connected to relay")
             return True
+
+        if not SERIAL_INSTALLED:
+            logger.error("pyserial is not installed. Install with: pip install pyserial")
+            return False
 
         try:
             self.relay = serial.Serial(self.port, self.baud, timeout=self.timeout)

@@ -7,7 +7,6 @@ Monitors a camera feed for weeds and controls a spray relay in defined zones.
 import sys
 import os
 import time
-import json
 from datetime import datetime
 import cv2
 
@@ -15,6 +14,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
+from core.config import load_app_config
 from core.paths import DEFAULT_CONFIG_PATH, EVENTS_DIR, LIVE_FRAME_DIR, LIVE_FRAME_PATH, STATUS_FILE, STOP_FILE, WEED_MODEL_PATH
 from core.relay_controller import RelayController
 from core.logger import setup_logger
@@ -28,58 +28,27 @@ except ImportError:
     YOLO = None
 
 MODEL_PATH = WEED_MODEL_PATH
-CONFIG_PATH = DEFAULT_CONFIG_PATH
+CONFIG_PATH = os.environ.get("SCARE_AI_CONFIG", DEFAULT_CONFIG_PATH)
+CFG = load_app_config(CONFIG_PATH, logger=logger)
 
-DEFAULTS = {
-    "camera_index": 0,
-    "frame_width": 640,
-    "frame_height": 480,
-    "relay_port": "COM5",
-    "relay_baud": 9600,
-    "weed_conf_threshold": 0.15,
-    "weed_frame_skip": 3,
-    "weed_spray_cooldown": 3.0,
-    "weed_spray_duration": 1.0,
-    "weed_zone_x_min": 0.30,
-    "weed_zone_x_max": 0.70,
-    "weed_zone_y_min": 0.30,
-    "weed_zone_y_max": 0.70,
-}
+RELAY_PORT = CFG.relay_port
+RELAY_BAUD = CFG.relay_baud
+ENABLE_STROBE = CFG.enable_strobe
 
-
-def load_ui_config(path: str):
-    cfg = DEFAULTS.copy()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                cfg.update(data)
-        except Exception as e:
-            logger.warning(f"Failed to read config: {e}")
-    return cfg
-
-
-CFG = load_ui_config(CONFIG_PATH)
-
-RELAY_PORT = str(CFG.get("relay_port", "COM5"))
-RELAY_BAUD = int(CFG.get("relay_baud", 9600))
-ENABLE_STROBE = bool(CFG.get("enable_strobe", True))
-
-CONF_THRESHOLD = float(CFG.get("weed_conf_threshold", 0.15))
+CONF_THRESHOLD = CFG.weed_conf_threshold
 INFER_WIDTH = 640
 INFER_HEIGHT = 360
-CAMERA_WIDTH = int(CFG.get("frame_width", 640))
-CAMERA_HEIGHT = int(CFG.get("frame_height", 480))
-FRAME_SKIP = int(CFG.get("weed_frame_skip", 3))
-SPRAY_COOLDOWN = float(CFG.get("weed_spray_cooldown", 3.0))
-SPRAY_DURATION = float(CFG.get("weed_spray_duration", 1.0))
-CAMERA_INDEX = int(CFG.get("camera_index", 0))
+CAMERA_WIDTH = CFG.frame_width
+CAMERA_HEIGHT = CFG.frame_height
+FRAME_SKIP = CFG.weed_frame_skip
+SPRAY_COOLDOWN = CFG.weed_spray_cooldown
+SPRAY_DURATION = CFG.weed_spray_duration
+CAMERA_INDEX = CFG.camera_index
 
-ZONE_X_MIN = float(CFG.get("weed_zone_x_min", 0.30))
-ZONE_X_MAX = float(CFG.get("weed_zone_x_max", 0.70))
-ZONE_Y_MIN = float(CFG.get("weed_zone_y_min", 0.30))
-ZONE_Y_MAX = float(CFG.get("weed_zone_y_max", 0.70))
+ZONE_X_MIN = CFG.weed_zone_x_min
+ZONE_X_MAX = CFG.weed_zone_x_max
+ZONE_Y_MIN = CFG.weed_zone_y_min
+ZONE_Y_MAX = CFG.weed_zone_y_max
 
 
 def write_status(text: str):

@@ -6,13 +6,13 @@ Monitors a camera feed for animals, unknown persons, and known faces using ML mo
 """
 
 import os
-import json
 import time
 import cv2
 import numpy as np
 from ultralytics import YOLO
 from openvino import Core
 
+from core.config import load_app_config
 from core.paths import (
     ANIMAL_CLASSIFIER_MODEL,
     DEFAULT_CONFIG_PATH,
@@ -33,76 +33,26 @@ from core.logger import setup_logger
 logger = setup_logger(__name__)
 
 CONFIG_PATH = os.environ.get("SCARE_AI_CONFIG", DEFAULT_CONFIG_PATH)
-ACTIVE_MODE = os.environ.get("SCARE_AI_ACTIVE_MODE", "Scare AI")
+CFG = load_app_config(CONFIG_PATH, logger=logger)
+ACTIVE_MODE = os.environ.get("SCARE_AI_ACTIVE_MODE", CFG.active_mode)
 
-DEFAULTS = {
-    "active_mode": "Scare AI",
-    "camera_index": 0,
-    "frame_width": 320,
-    "frame_height": 240,
-    "face_match_threshold": 0.35,
-    "animal_classifier_confidence": 0.60,
-    "warning_duration": 10,
-    "alarm_duration": 10,
-    "known_cooldown": 3,
-    "post_alarm_cooldown": 5,
-    "frame_skip": 3,
-    "person_confirm_frames": 2,
-    "animal_confirm_frames": 2,
-    "enable_strobe": True,
-    "enable_horn": True,
-    "enable_event_photos": True,
-    "relay_port": "COM5",
-    "relay_baud": 9600,
-}
-
-
-def load_ui_config(path: str) -> dict:
-    """
-    Load configuration from JSON file or use defaults.
-
-    Args:
-        path: Path to configuration JSON file
-
-    Returns:
-        Dictionary with configuration values
-    """
-    cfg = DEFAULTS.copy()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                cfg.update(data)
-            logger.info(f"Configuration loaded from {path}")
-        except json.JSONDecodeError as e:
-            logger.warning(f"Invalid JSON in config file {path}: {e}. Using defaults.")
-        except IOError as e:
-            logger.warning(f"Failed to read config file {path}: {e}. Using defaults.")
-    else:
-        logger.warning(f"Config file not found at {path}. Using defaults.")
-    return cfg
-
-
-CFG = load_ui_config(CONFIG_PATH)
-
-CAMERA_INDEX = int(CFG.get("camera_index", 0))
-FRAME_WIDTH = int(CFG.get("frame_width", 320))
-FRAME_HEIGHT = int(CFG.get("frame_height", 240))
-FACE_MATCH_THRESHOLD = float(CFG.get("face_match_threshold", 0.35))
-ANIMAL_CLASSIFIER_CONFIDENCE = float(CFG.get("animal_classifier_confidence", 0.60))
-WARNING_DURATION = int(CFG.get("warning_duration", 10))
-ALARM_DURATION = int(CFG.get("alarm_duration", 10))
-KNOWN_COOLDOWN = int(CFG.get("known_cooldown", 3))
-POST_ALARM_COOLDOWN = int(CFG.get("post_alarm_cooldown", 5))
-FRAME_SKIP = int(CFG.get("frame_skip", 3))
-PERSON_CONFIRM_FRAMES = int(CFG.get("person_confirm_frames", 2))
-ANIMAL_CONFIRM_FRAMES = int(CFG.get("animal_confirm_frames", 2))
-ENABLE_STROBE = bool(CFG.get("enable_strobe", True))
-ENABLE_HORN = bool(CFG.get("enable_horn", True))
-ENABLE_EVENT_PHOTOS = bool(CFG.get("enable_event_photos", True))
-RELAY_PORT = str(CFG.get("relay_port", "COM5"))
-RELAY_BAUD = int(CFG.get("relay_baud", 9600))
+CAMERA_INDEX = CFG.camera_index
+FRAME_WIDTH = CFG.frame_width
+FRAME_HEIGHT = CFG.frame_height
+FACE_MATCH_THRESHOLD = CFG.face_match_threshold
+ANIMAL_CLASSIFIER_CONFIDENCE = CFG.animal_classifier_confidence
+WARNING_DURATION = CFG.warning_duration
+ALARM_DURATION = CFG.alarm_duration
+KNOWN_COOLDOWN = CFG.known_cooldown
+POST_ALARM_COOLDOWN = CFG.post_alarm_cooldown
+FRAME_SKIP = CFG.frame_skip
+PERSON_CONFIRM_FRAMES = CFG.person_confirm_frames
+ANIMAL_CONFIRM_FRAMES = CFG.animal_confirm_frames
+ENABLE_STROBE = CFG.enable_strobe
+ENABLE_HORN = CFG.enable_horn
+ENABLE_EVENT_PHOTOS = CFG.enable_event_photos
+RELAY_PORT = CFG.relay_port
+RELAY_BAUD = CFG.relay_baud
 
 TARGET_ANIMALS = {"bird", "dog", "cat"}
 

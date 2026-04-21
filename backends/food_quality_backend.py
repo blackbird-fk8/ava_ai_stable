@@ -7,7 +7,6 @@ Provides real-time quality status (GOOD, WARNING, BAD) via status file.
 
 import os
 import sys
-import json
 import time
 import cv2
 
@@ -15,6 +14,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
+from core.config import load_app_config
 from core.logger import setup_logger
 from core.paths import DEFAULT_CONFIG_PATH, FOOD_MODEL_PATH, LIVE_FRAME_DIR, LIVE_FRAME_PATH, STATUS_FILE, STOP_FILE
 
@@ -27,17 +27,6 @@ except ImportError:
     YOLO = None
 
 CONFIG_PATH = os.environ.get("SCARE_AI_CONFIG", DEFAULT_CONFIG_PATH)
-
-DEFAULTS = {
-    "camera_index": 0,
-    "frame_width": 320,
-    "frame_height": 240,
-    "food_conf_threshold": 0.55,
-    "food_frame_skip": 3,
-    "food_simulation_interval": 5.0,
-    "food_infer_width": 224,
-    "food_infer_height": 224,
-}
 
 STATUS_MAP = {
     "good": "GOOD",
@@ -55,29 +44,15 @@ STATUS_MAP = {
     "spoiled": "BAD",
 }
 
-def load_ui_config(path: str):
-    cfg = DEFAULTS.copy()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                cfg.update(data)
-        except Exception as e:
-            logger.warning(f"Failed to read config: {e}")
-    else:
-        logger.warning(f"Config not found, using defaults: {path}")
-    return cfg
-
-CFG = load_ui_config(CONFIG_PATH)
-CAMERA_INDEX = int(CFG.get("camera_index", 0))
-FRAME_WIDTH = int(CFG.get("frame_width", 320))
-FRAME_HEIGHT = int(CFG.get("frame_height", 240))
-CONFIDENCE_THRESHOLD = float(CFG.get("food_conf_threshold", 0.55))
-FRAME_SKIP = int(CFG.get("food_frame_skip", 3))
-SIMULATION_INTERVAL_SEC = float(CFG.get("food_simulation_interval", 5.0))
-INFER_WIDTH = int(CFG.get("food_infer_width", 224))
-INFER_HEIGHT = int(CFG.get("food_infer_height", 224))
+CFG = load_app_config(CONFIG_PATH, logger=logger)
+CAMERA_INDEX = CFG.camera_index
+FRAME_WIDTH = CFG.frame_width
+FRAME_HEIGHT = CFG.frame_height
+CONFIDENCE_THRESHOLD = CFG.food_conf_threshold
+FRAME_SKIP = CFG.food_frame_skip
+SIMULATION_INTERVAL_SEC = CFG.food_simulation_interval
+INFER_WIDTH = CFG.food_infer_width
+INFER_HEIGHT = CFG.food_infer_height
 
 def write_status(value: str) -> bool:
     """Write status to file for UI monitoring. Returns True if successful."""
