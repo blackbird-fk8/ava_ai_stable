@@ -2,6 +2,7 @@
 Weed Detection and Spray Control Backend
 
 Monitors a camera feed for weeds and controls a spray relay in defined zones.
+Updated HUD/text sizing for small 320x240 UI preview screens.
 """
 
 import sys
@@ -49,6 +50,22 @@ ZONE_X_MIN = CFG.weed_zone_x_min
 ZONE_X_MAX = CFG.weed_zone_x_max
 ZONE_Y_MIN = CFG.weed_zone_y_min
 ZONE_Y_MAX = CFG.weed_zone_y_max
+
+# Small-preview HUD tuning. These values are intentionally compact for 320x240.
+HUD_FONT = cv2.FONT_HERSHEY_SIMPLEX
+HUD_SCALE = 0.38
+HUD_THICKNESS = 1
+HUD_LINE_HEIGHT = 16
+HUD_X = 8
+HUD_Y = 16
+
+ZONE_LABEL_SCALE = 0.36
+DETECTION_LABEL_SCALE = 0.36
+TARGET_LOCK_SCALE = 0.38
+
+BOX_THICKNESS = 1
+ZONE_THICKNESS = 1
+CENTER_DOT_RADIUS = 2
 
 
 def write_status(text: str):
@@ -114,21 +131,41 @@ def save_weed_event(frame, detections_text: str):
     logger.info(f"Saved weed event -> {event_folder}")
 
 
-def draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, detection_count, weed_count, crop_count, fps_text, info_text, info_color):
-    cv2.rectangle(frame, (zone_x1, zone_y1), (zone_x2, zone_y2), (255, 255, 255), 2)
-    cv2.putText(frame, "SPRAY ZONE", (zone_x1, max(20, zone_y1 - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+def safe_text_origin(x, y, frame_w, frame_h, margin=4):
+    """Keep text origin inside the frame."""
+    x = max(margin, min(int(x), frame_w - margin))
+    y = max(12, min(int(y), frame_h - margin))
+    return x, y
 
-    cv2.putText(frame, f"Detections: {detection_count}", (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-    cv2.putText(frame, f"Weeds: {weed_count}  Crops: {crop_count}", (10, 60),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    cv2.putText(frame, f"Conf threshold: {CONF_THRESHOLD:.2f}  Skip: {FRAME_SKIP}", (10, 90),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    cv2.putText(frame, fps_text, (10, 120),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    cv2.putText(frame, info_text, (10, 155),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2)
+
+def draw_text(frame, text, x, y, color, scale=HUD_SCALE, thickness=HUD_THICKNESS):
+    frame_h, frame_w = frame.shape[:2]
+    x, y = safe_text_origin(x, y, frame_w, frame_h)
+    cv2.putText(frame, text, (x, y), HUD_FONT, scale, color, thickness, cv2.LINE_AA)
+
+
+def draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, detection_count, weed_count, crop_count, fps_text, info_text, info_color):
+    frame_h, frame_w = frame.shape[:2]
+
+    cv2.rectangle(frame, (zone_x1, zone_y1), (zone_x2, zone_y2), (255, 255, 255), ZONE_THICKNESS)
+
+    # Place the spray-zone label inside or just above the box, without leaving the preview frame.
+    zone_label_y = zone_y1 - 6 if zone_y1 > 18 else zone_y1 + 14
+    draw_text(frame, "SPRAY ZONE", zone_x1, zone_label_y, (255, 255, 255), ZONE_LABEL_SCALE, HUD_THICKNESS)
+
+    # Compact HUD for 320x240 preview screens.
+    hud_lines = [
+        (f"Det: {detection_count}", (255, 255, 0)),
+        (f"Weed: {weed_count}  Crop: {crop_count}", (255, 255, 0)),
+        (f"Conf: {CONF_THRESHOLD:.2f}  Skip: {FRAME_SKIP}", (255, 255, 0)),
+        (fps_text.replace("Infer FPS:", "FPS:"), (255, 255, 0)),
+        (info_text, info_color),
+    ]
+
+    y = HUD_Y
+    for text, color in hud_lines:
+        draw_text(frame, text, HUD_X, y, color, HUD_SCALE, HUD_THICKNESS)
+        y += HUD_LINE_HEIGHT
 
 
 def main():
@@ -190,7 +227,7 @@ def main():
             write_status("WEED:READY")
 
             if model is None:
-                draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, 0, 0, 0, "Mode: DEMO", "NO MODEL - DEMO MODE", (0, 0, 255))
+                draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, 0, 0, 0, "Mode: DEMO", "NO MODEL", (0, 0, 255))
                 write_live_frame(frame)
                 continue
 
@@ -232,18 +269,16 @@ def main():
                     if in_zone:
                         color = (0, 0, 255)
                         weed_detected = True
-                        cv2.putText(frame, "TARGET LOCK", (max(10, x1), max(20, y1 - 30)),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                        draw_text(frame, "TARGET", max(4, x1), max(14, y1 - 18), color, TARGET_LOCK_SCALE, HUD_THICKNESS)
                     else:
                         color = (0, 165, 255)
                 else:
                     color = (0, 255, 0)
                     crop_count += 1
 
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                cv2.circle(frame, (cx, cy), 4, color, -1)
-                cv2.putText(frame, f"{label} {conf:.2f}", (x1, max(20, y1 - 10)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, BOX_THICKNESS)
+                cv2.circle(frame, (cx, cy), CENTER_DOT_RADIUS, color, -1)
+                draw_text(frame, f"{label} {conf:.2f}", x1, max(14, y1 - 5), color, DETECTION_LABEL_SCALE, HUD_THICKNESS)
                 logger.debug(f" {label} conf={conf:.2f} in_zone={in_zone}")
 
             now = time.time()
@@ -256,7 +291,7 @@ def main():
                 info_color = (0, 165, 255)
             elif weed_detected:
                 write_status("WEED:DETECTING")
-                info_text = "WEED IN SPRAY ZONE"
+                info_text = "WEED IN ZONE"
                 info_color = (0, 0, 255)
 
                 if time.time() - last_spray_time > SPRAY_COOLDOWN:
@@ -269,7 +304,7 @@ def main():
                     save_weed_event(frame, ", ".join(weed_details) if weed_details else "weed_detected")
             else:
                 if weed_count > 0:
-                    info_text = "WEED OUTSIDE ZONE"
+                    info_text = "WEED OUT ZONE"
                     info_color = (0, 165, 255)
                 else:
                     info_text = "NO WEED"

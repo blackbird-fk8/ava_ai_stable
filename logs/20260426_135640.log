@@ -1,0 +1,4 @@
+[2026-04-26 13:56:46] [WARNING] [core.event_logger] ALARM TRIGGERED: animal_deer
+[2026-04-26 13:56:47] [INFO] [core.event_logger] Saved 3 images to C:\scare_ai\events\2026-04-26\animal_deer_13-56-46
+[2026-04-26 13:56:47] [INFO] [core.event_logger] Alarm activated for 10 seconds
+[2026-04-26 13:56:57] [INFO] [core.event_logger] Alarm deactivated
