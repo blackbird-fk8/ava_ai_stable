@@ -1,2 +1,0 @@
-timestamp=2026-03-09T14:32:00.238033
-label=unknown_person
