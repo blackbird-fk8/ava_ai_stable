@@ -1,0 +1,8 @@
+[2026-04-26 14:30:55] [WARNING] [core.event_logger] ALARM TRIGGERED: animal_coyote
+[2026-04-26 14:30:55] [INFO] [core.event_logger] Saved 3 images to C:\scare_ai\events\2026-04-26\animal_coyote_14-30-55
+[2026-04-26 14:30:55] [INFO] [core.event_logger] Alarm activated for 10 seconds
+[2026-04-26 14:31:05] [INFO] [core.event_logger] Alarm deactivated
+[2026-04-26 14:31:16] [WARNING] [core.event_logger] ALARM TRIGGERED: animal_coyote
+[2026-04-26 14:31:16] [INFO] [core.event_logger] Saved 3 images to C:\scare_ai\events\2026-04-26\animal_coyote_14-31-16
+[2026-04-26 14:31:16] [INFO] [core.event_logger] Alarm activated for 10 seconds
+[2026-04-26 14:31:26] [INFO] [core.event_logger] Alarm deactivated

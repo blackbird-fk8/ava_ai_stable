@@ -175,18 +175,27 @@ def status_color(status: str):
     return (255, 255, 255)
 
 def draw_overlay(frame, mode_text: str, status: str, label: str = None, confidence: float = None):
+    """Draw compact HUD text sized for the 320x240 UI preview."""
     color = status_color(status)
-    cv2.putText(frame, f"Food Quality: {status}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-    cv2.putText(frame, mode_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
 
-    tuning_text = f"Conf {CONFIDENCE_THRESHOLD:.2f}  Skip {FRAME_SKIP}  Infer {INFER_WIDTH}x{INFER_HEIGHT}"
-    cv2.putText(frame, tuning_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 2)
+    # Compact text settings for small preview windows.
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    main_scale = 0.45
+    small_scale = 0.36
+    thickness = 1
+    left = 8
+
+    cv2.putText(frame, f"Food: {status}", (left, 20), font, main_scale, color, thickness)
+    cv2.putText(frame, mode_text, (left, 40), font, small_scale, (200, 200, 200), thickness)
+
+    tuning_text = f"Conf {CONFIDENCE_THRESHOLD:.2f} | Skip {FRAME_SKIP} | {INFER_WIDTH}x{INFER_HEIGHT}"
+    cv2.putText(frame, tuning_text, (left, 58), font, small_scale, (200, 200, 200), thickness)
 
     if label is not None:
         detail = f"Label: {label}"
         if confidence is not None:
             detail += f" ({confidence:.2f})"
-        cv2.putText(frame, detail, (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+        cv2.putText(frame, detail, (left, 76), font, small_scale, color, thickness)
 
 def main():
     """Main food quality monitoring loop."""

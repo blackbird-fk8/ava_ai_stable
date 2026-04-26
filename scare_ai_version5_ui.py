@@ -1,7 +1,7 @@
-
 import os
 import sys
 import json
+import time
 import cv2
 import shutil
 from dataclasses import dataclass, asdict
@@ -11,6 +11,8 @@ from PySide6.QtCore import Qt, QTimer, Signal, QObject, QSize, QProcess, QProces
 from PySide6.QtGui import QImage, QPixmap, QIcon, QTextCursor, QAction
 from PySide6.QtWidgets import (
     QApplication,
+    QSplashScreen,
+    QProgressBar,
     QMainWindow,
     QWidget,
     QLabel,
@@ -48,6 +50,19 @@ STATUS_FILE = os.path.join(BASE_DIR, "status.txt")
 NOTES_FILE = os.path.join(CONFIG_DIR, "ava_operator_notes.txt")
 LIVE_FRAME_DIR = os.path.join(BASE_DIR, "status_frames")
 LIVE_FRAME_PATH = os.path.join(LIVE_FRAME_DIR, "live_view.jpg")
+
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+APP_ICON_PATH = os.path.join(ASSETS_DIR, "ava_icon.ico")
+SPLASH_IMAGE_PATH = os.path.join(ASSETS_DIR, "ava_splash.png")
+
+
+def app_resource_path(path: str) -> str:
+    """Return a path that works from source or a PyInstaller bundle."""
+    if hasattr(sys, "_MEIPASS"):
+        bundled_path = os.path.join(sys._MEIPASS, os.path.relpath(path, BASE_DIR))
+        if os.path.exists(bundled_path):
+            return bundled_path
+    return path
 
 AVA_ALERT_BACKEND = os.path.join(BASE_DIR, "scare_ai_v4.py")
 FOOD_QUALITY_BACKEND = os.path.join(BASE_DIR, "backends", "food_quality_backend.py")
@@ -139,8 +154,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_TITLE} - Dashboard")
-        self.resize(1020, 640)
-        self.setMinimumSize(940, 580)
+        icon_path = app_resource_path(APP_ICON_PATH)
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        self.resize(1024, 600)
+        self.setMinimumSize(940, 560)
 
         self.ensure_directories()
 
@@ -1608,11 +1626,63 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
+def show_startup_splash(app: QApplication):
+    """Show the custom A.V.A. splash screen with a five-second loading bar."""
+    splash_path = app_resource_path(SPLASH_IMAGE_PATH)
+    icon_path = app_resource_path(APP_ICON_PATH)
+
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+
+    if not os.path.exists(splash_path):
+        return None, None
+
+    pixmap = QPixmap(splash_path)
+    splash = QSplashScreen(pixmap)
+    splash.setWindowFlag(Qt.WindowStaysOnTopHint)
+    splash.setWindowFlag(Qt.FramelessWindowHint)
+
+    progress = QProgressBar(splash)
+    progress.setRange(0, 100)
+    progress.setValue(0)
+    progress.setTextVisible(True)
+    progress.setGeometry(212, 290, 600, 22)
+    progress.setStyleSheet("""
+        QProgressBar {
+            background-color: rgba(35, 35, 35, 210);
+            border: 1px solid #444444;
+            border-radius: 7px;
+            color: #FFFFFF;
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+        }
+        QProgressBar::chunk {
+            background-color: #7A0019;
+            border-radius: 6px;
+        }
+    """)
+
+    splash.show()
+    app.processEvents()
+
+    for value in range(101):
+        progress.setValue(value)
+        app.processEvents()
+        time.sleep(0.05)
+
+    return splash, progress
+
+
 def main():
     app = QApplication(sys.argv)
+    splash, _ = show_startup_splash(app)
     window = MainWindow()
     window.show()
+    if splash is not None:
+        splash.finish(window)
     sys.exit(app.exec())
+
 
 
 if __name__ == "__main__":

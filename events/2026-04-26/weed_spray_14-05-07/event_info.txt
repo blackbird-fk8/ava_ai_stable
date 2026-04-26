@@ -1,0 +1,3 @@
+event_label=weed_spray
+time=2026-04-26T14:05:07.132597
+details=weed:0.18:in_zone=False, weed:0.12:in_zone=True, weed:0.11:in_zone=False
