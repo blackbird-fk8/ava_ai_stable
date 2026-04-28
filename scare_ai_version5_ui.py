@@ -64,6 +64,21 @@ def app_resource_path(path: str) -> str:
             return bundled_path
     return path
 
+
+BACKEND_PYTHON_EXE = os.path.join(BASE_DIR, "venv", "Scripts", "python.exe")
+
+
+def backend_python_executable() -> str:
+    """Return the Python interpreter used for backend scripts.
+
+    Important: when the UI is packaged as an EXE, sys.executable points to
+    AVA_Control_Center.exe. If QProcess uses that value, starting a backend
+    will relaunch the UI instead of running the backend .py file.
+    """
+    if os.path.exists(BACKEND_PYTHON_EXE):
+        return BACKEND_PYTHON_EXE
+    return sys.executable
+
 AVA_ALERT_BACKEND = os.path.join(BASE_DIR, "scare_ai_v4.py")
 FOOD_QUALITY_BACKEND = os.path.join(BASE_DIR, "backends", "food_quality_backend.py")
 WEED_SPRAYER_BACKEND = os.path.join(BASE_DIR, "backends", "weed_sprayer_backend.py")
@@ -1479,7 +1494,8 @@ class MainWindow(QMainWindow):
                 pass
 
         process = QProcess(self)
-        process.setProgram(sys.executable)
+        backend_python = backend_python_executable()
+        process.setProgram(backend_python)
         process.setArguments([backend_path])
         process.setWorkingDirectory(BASE_DIR)
         env = QProcessEnvironment.systemEnvironment()
@@ -1493,6 +1509,7 @@ class MainWindow(QMainWindow):
         self.engine_process = process
 
         self.append_log(f"[UI] Starting backend for mode: {mode}")
+        self.append_log(f"[UI] Backend Python: {backend_python}")
         process.start()
 
         if not process.waitForStarted(3000):

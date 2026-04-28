@@ -1,3 +1,0 @@
-event_label=weed_spray
-time=2026-04-26T14:04:30.581234
-details=weed:0.11:in_zone=True

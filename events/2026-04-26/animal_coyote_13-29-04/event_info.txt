@@ -1,3 +1,0 @@
-event_label=animal_coyote
-time=2026-04-26T13:29:05.237065
-detector=coyote

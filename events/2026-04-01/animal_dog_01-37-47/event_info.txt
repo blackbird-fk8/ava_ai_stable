@@ -1,3 +1,0 @@
-event_label=animal_dog
-time=2026-04-01T01:37:48.029747
-mode=yolo_fallback, yolo=dog
