@@ -1,5 +1,0 @@
-[2026-04-26 13:11:42] [INFO] [__main__] Food config path: C:\scare_ai\configs\scare_ai_ui_config.json
-[2026-04-26 13:11:42] [INFO] [__main__] Camera: 0 320x240
-[2026-04-26 13:11:42] [INFO] [__main__] Food tuning: conf=0.55, skip=3, interval=5.0s, infer=224x224
-[2026-04-26 13:11:42] [INFO] [__main__] Loading food quality model: C:\scare_ai\food_models\food_quality_v1\weights\best.pt
-[2026-04-26 13:11:47] [INFO] [__main__] Stop signal received.
