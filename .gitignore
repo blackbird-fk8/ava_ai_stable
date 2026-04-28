@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+installer_output/
+logs/
+events/
+status.txt
+stop_signal.txt
+status_frames/
