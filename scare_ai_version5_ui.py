@@ -1198,15 +1198,23 @@ class MainWindow(QMainWindow):
         self.refresh_health_cards()
 
     def test_strobe(self):
+        # Momentary manual test: pulse Relay 1 briefly, then force it off.
+        # This avoids leaving the pump/strobe load on continuously during testing.
         self.send_relay_command([RELAY1_ON])
+        QTimer.singleShot(1000, lambda: self.send_relay_command([RELAY1_OFF]))
 
     def test_horn(self):
+        # Momentary manual test: pulse Relay 2 briefly, then force it off.
         self.send_relay_command([RELAY2_ON])
+        QTimer.singleShot(1000, lambda: self.send_relay_command([RELAY2_OFF]))
 
     def test_both(self):
+        # Momentary manual test: pulse both relays briefly, then force both off.
         self.send_relay_command([RELAY1_ON, RELAY2_ON])
+        QTimer.singleShot(1000, lambda: self.send_relay_command([RELAY1_OFF, RELAY2_OFF]))
 
     def stop_relays(self):
+        # Immediate manual shutoff remains unchanged.
         self.send_relay_command([RELAY1_OFF, RELAY2_OFF])
 
     def check_camera_only(self):
