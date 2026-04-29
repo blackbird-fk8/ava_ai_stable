@@ -1,12 +1,20 @@
-venv/
-__pycache__/
-*.pyc
-build/
-dist/
-*.spec
-installer_output/
-logs/
-events/
-status.txt
-stop_signal.txt
-status_frames/
+# datasets / large files
+food_dataset/
+weed_detection_dataset/
+runs/
+known_faces/
+
+# models
+*.pt
+
+# temp / scripts
+apply_relay_fix.py
+scare_ai_*backup*
+scare_ai_alarm.py
+scare_ai_backend.py
+scare_ai_full.py
+scare_ai_prototype.py
+scare_ai_ui.py
+
+# misc
+.gitignore.txt
