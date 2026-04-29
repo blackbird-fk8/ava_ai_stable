@@ -15,7 +15,7 @@
   "enable_strobe": true,
   "enable_horn": true,
   "enable_event_photos": true,
-  "relay_port": "COM15",
+  "relay_port": "COM16",
   "relay_baud": 9600,
   "weed_conf_threshold": 0.1,
   "weed_frame_skip": 3,

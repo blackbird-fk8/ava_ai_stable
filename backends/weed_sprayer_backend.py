@@ -2,7 +2,12 @@
 Weed Detection and Spray Control Backend
 
 Monitors a camera feed for weeds and controls a spray relay in defined zones.
-Updated HUD/text sizing for small 320x240 UI preview screens.
+
+Updated safety behavior:
+- Keeps the smaller HUD/preview text.
+- Uses safe relay-off retries after each spray.
+- Attempts reconnect/retry if the relay disconnects or COM port drops.
+- Forces relay/pump off during shutdown.
 """
 
 import sys
@@ -51,21 +56,13 @@ ZONE_X_MAX = CFG.weed_zone_x_max
 ZONE_Y_MIN = CFG.weed_zone_y_min
 ZONE_Y_MAX = CFG.weed_zone_y_max
 
-# Small-preview HUD tuning. These values are intentionally compact for 320x240.
+# Smaller HUD values for 320x240 preview
 HUD_FONT = cv2.FONT_HERSHEY_SIMPLEX
-HUD_SCALE = 0.38
+HUD_SCALE_SMALL = 0.38
+HUD_SCALE_MED = 0.42
+HUD_SCALE_ALERT = 0.48
 HUD_THICKNESS = 1
-HUD_LINE_HEIGHT = 16
-HUD_X = 8
-HUD_Y = 16
-
-ZONE_LABEL_SCALE = 0.36
-DETECTION_LABEL_SCALE = 0.36
-TARGET_LOCK_SCALE = 0.38
-
 BOX_THICKNESS = 1
-ZONE_THICKNESS = 1
-CENTER_DOT_RADIUS = 2
 
 
 def write_status(text: str):
@@ -131,41 +128,121 @@ def save_weed_event(frame, detections_text: str):
     logger.info(f"Saved weed event -> {event_folder}")
 
 
-def safe_text_origin(x, y, frame_w, frame_h, margin=4):
-    """Keep text origin inside the frame."""
-    x = max(margin, min(int(x), frame_w - margin))
-    y = max(12, min(int(y), frame_h - margin))
-    return x, y
+def safe_relay_off(relay, retries: int = 5, delay: float = 0.2, reconnect: bool = True):
+    """
+    Best-effort pump/relay off routine.
+
+    This is intentionally defensive because USB relay boards can briefly disconnect
+    when an inductive pump/motor turns on. If that happens, normal relay.strobe_off()
+    may fail and leave the relay latched. This retries, and optionally reconnects.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            relay.strobe_off()
+            return True
+        except Exception as e:
+            logger.warning(f"Relay strobe_off failed attempt {attempt}/{retries}: {e}")
+
+            if reconnect:
+                try:
+                    relay.close()
+                except Exception:
+                    pass
+
+                time.sleep(delay)
+
+                try:
+                    relay.connect()
+                except Exception as reconnect_error:
+                    logger.warning(f"Relay reconnect failed attempt {attempt}/{retries}: {reconnect_error}")
+
+            time.sleep(delay)
+
+    return False
 
 
-def draw_text(frame, text, x, y, color, scale=HUD_SCALE, thickness=HUD_THICKNESS):
-    frame_h, frame_w = frame.shape[:2]
-    x, y = safe_text_origin(x, y, frame_w, frame_h)
-    cv2.putText(frame, text, (x, y), HUD_FONT, scale, color, thickness, cv2.LINE_AA)
+def safe_all_relays_off(relay, retries: int = 5, delay: float = 0.2):
+    """
+    Best-effort shutdown for all relay outputs.
+    """
+    success = False
+    for attempt in range(1, retries + 1):
+        try:
+            try:
+                relay.strobe_off()
+            except Exception:
+                pass
+
+            try:
+                relay.alarm_off()
+            except Exception:
+                pass
+
+            success = True
+            time.sleep(delay)
+        except Exception as e:
+            logger.warning(f"Final relay off attempt {attempt}/{retries} failed: {e}")
+
+            try:
+                relay.close()
+            except Exception:
+                pass
+
+            time.sleep(delay)
+
+            try:
+                relay.connect()
+            except Exception as reconnect_error:
+                logger.warning(f"Final relay reconnect failed attempt {attempt}/{retries}: {reconnect_error}")
+
+    return success
+
+
+def safe_spray_pulse(relay, duration: float):
+    """
+    Turn sprayer relay on for duration, then force it off even if an error occurs.
+    """
+    relay_on_ok = False
+
+    try:
+        relay.strobe_on()
+        relay_on_ok = True
+        time.sleep(duration)
+    except Exception as e:
+        logger.warning(f"Relay strobe_on or spray pulse failed: {e}")
+    finally:
+        off_ok = safe_relay_off(relay, retries=6, delay=0.25, reconnect=True)
+        if off_ok:
+            logger.info("Spray relay forced OFF.")
+        else:
+            logger.error("Spray relay OFF command may have failed. Check relay/pump power immediately.")
+
+    return relay_on_ok
 
 
 def draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, detection_count, weed_count, crop_count, fps_text, info_text, info_color):
-    frame_h, frame_w = frame.shape[:2]
+    cv2.rectangle(frame, (zone_x1, zone_y1), (zone_x2, zone_y2), (255, 255, 255), BOX_THICKNESS)
 
-    cv2.rectangle(frame, (zone_x1, zone_y1), (zone_x2, zone_y2), (255, 255, 255), ZONE_THICKNESS)
+    # Spray zone label: placed close to box but kept inside image bounds
+    label_y = max(14, zone_y1 - 6)
+    cv2.putText(frame, "SPRAY ZONE", (max(4, zone_x1), label_y),
+                HUD_FONT, HUD_SCALE_SMALL, (255, 255, 255), HUD_THICKNESS)
 
-    # Place the spray-zone label inside or just above the box, without leaving the preview frame.
-    zone_label_y = zone_y1 - 6 if zone_y1 > 18 else zone_y1 + 14
-    draw_text(frame, "SPRAY ZONE", zone_x1, zone_label_y, (255, 255, 255), ZONE_LABEL_SCALE, HUD_THICKNESS)
+    # Compact HUD for 320x240 UI preview
+    cv2.putText(frame, f"Detections: {detection_count}", (6, 16),
+                HUD_FONT, HUD_SCALE_SMALL, (255, 255, 0), HUD_THICKNESS)
+    cv2.putText(frame, f"Weeds: {weed_count}  Crops: {crop_count}", (6, 33),
+                HUD_FONT, HUD_SCALE_SMALL, (255, 255, 0), HUD_THICKNESS)
+    cv2.putText(frame, f"Conf: {CONF_THRESHOLD:.2f}  Skip: {FRAME_SKIP}", (6, 50),
+                HUD_FONT, HUD_SCALE_SMALL, (255, 255, 0), HUD_THICKNESS)
+    cv2.putText(frame, fps_text, (6, 67),
+                HUD_FONT, HUD_SCALE_SMALL, (255, 255, 0), HUD_THICKNESS)
 
-    # Compact HUD for 320x240 preview screens.
-    hud_lines = [
-        (f"Det: {detection_count}", (255, 255, 0)),
-        (f"Weed: {weed_count}  Crop: {crop_count}", (255, 255, 0)),
-        (f"Conf: {CONF_THRESHOLD:.2f}  Skip: {FRAME_SKIP}", (255, 255, 0)),
-        (fps_text.replace("Infer FPS:", "FPS:"), (255, 255, 0)),
-        (info_text, info_color),
-    ]
-
-    y = HUD_Y
-    for text, color in hud_lines:
-        draw_text(frame, text, HUD_X, y, color, HUD_SCALE, HUD_THICKNESS)
-        y += HUD_LINE_HEIGHT
+    # Main state text near bottom-left to avoid covering center target area
+    frame_h = frame.shape[0]
+    info_y = max(86, min(frame_h - 10, frame_h - 14))
+    cv2.putText(frame, info_text, (6, info_y),
+                HUD_FONT, HUD_SCALE_ALERT, info_color, HUD_THICKNESS)
 
 
 def main():
@@ -227,7 +304,7 @@ def main():
             write_status("WEED:READY")
 
             if model is None:
-                draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, 0, 0, 0, "Mode: DEMO", "NO MODEL", (0, 0, 255))
+                draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2, 0, 0, 0, "Mode: DEMO", "NO MODEL - DEMO MODE", (0, 0, 255))
                 write_live_frame(frame)
                 continue
 
@@ -269,7 +346,8 @@ def main():
                     if in_zone:
                         color = (0, 0, 255)
                         weed_detected = True
-                        draw_text(frame, "TARGET", max(4, x1), max(14, y1 - 18), color, TARGET_LOCK_SCALE, HUD_THICKNESS)
+                        cv2.putText(frame, "TARGET LOCK", (max(4, x1), max(12, y1 - 18)),
+                                    HUD_FONT, HUD_SCALE_MED, (0, 0, 255), HUD_THICKNESS)
                     else:
                         color = (0, 165, 255)
                 else:
@@ -277,8 +355,9 @@ def main():
                     crop_count += 1
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, BOX_THICKNESS)
-                cv2.circle(frame, (cx, cy), CENTER_DOT_RADIUS, color, -1)
-                draw_text(frame, f"{label} {conf:.2f}", x1, max(14, y1 - 5), color, DETECTION_LABEL_SCALE, HUD_THICKNESS)
+                cv2.circle(frame, (cx, cy), 3, color, -1)
+                cv2.putText(frame, f"{label} {conf:.2f}", (max(4, x1), max(12, y1 - 5)),
+                            HUD_FONT, HUD_SCALE_SMALL, color, HUD_THICKNESS)
                 logger.debug(f" {label} conf={conf:.2f} in_zone={in_zone}")
 
             now = time.time()
@@ -291,24 +370,31 @@ def main():
                 info_color = (0, 165, 255)
             elif weed_detected:
                 write_status("WEED:DETECTING")
-                info_text = "WEED IN ZONE"
+                info_text = "WEED IN SPRAY ZONE"
                 info_color = (0, 0, 255)
 
                 if time.time() - last_spray_time > SPRAY_COOLDOWN:
                     logger.info("Weed in zone -> spraying")
                     write_status("WEED:SPRAYING")
-                    relay.strobe_on()
-                    time.sleep(SPRAY_DURATION)
-                    relay.strobe_off()
+
+                    spray_started = safe_spray_pulse(relay, SPRAY_DURATION)
                     last_spray_time = time.time()
-                    save_weed_event(frame, ", ".join(weed_details) if weed_details else "weed_detected")
+
+                    if spray_started:
+                        save_weed_event(frame, ", ".join(weed_details) if weed_details else "weed_detected")
+                    else:
+                        logger.warning("Spray event was not saved because relay did not start cleanly.")
             else:
                 if weed_count > 0:
-                    info_text = "WEED OUT ZONE"
+                    info_text = "WEED OUTSIDE ZONE"
                     info_color = (0, 165, 255)
                 else:
                     info_text = "NO WEED"
                     info_color = (0, 255, 0)
+
+                # Extra safety: make sure pump is off when weed is not in the zone.
+                # This is low-frequency because the backend already uses frame skipping.
+                safe_relay_off(relay, retries=1, delay=0.05, reconnect=False)
 
             draw_overlay(frame, zone_x1, zone_y1, zone_x2, zone_y2,
                          detection_count, weed_count, crop_count, fps_text, info_text, info_color)
@@ -317,8 +403,9 @@ def main():
             write_live_frame(frame)
 
     finally:
+        # Force all relay outputs off during shutdown.
         try:
-            relay.alarm_off()
+            safe_all_relays_off(relay, retries=6, delay=0.25)
         except Exception:
             pass
 
