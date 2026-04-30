@@ -266,3 +266,11 @@ For issues or questions:
 - Review configuration in `configs/scare_ai_ui_config.json`
 - Verify hardware connections for relay module
 - Ensure all models are present in `models/` and `animal_models/`
+
+## Model Performance
+
+### Animal Detection
+
+![Results](docs/results/animal_results.png)
+
+![Confusion Matrix](docs/results/animal_confusion.png)
