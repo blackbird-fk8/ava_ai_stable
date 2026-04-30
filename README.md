@@ -255,6 +255,18 @@ faces = detect_faces(frame)
 logger.info(f"Found {len(faces)} faces")
 ```
 
+## Model Performance
+
+### Animal Detection
+![Training Results](docs/results/animal_results.png)
+![Confusion Matrix](docs/results/animal_confusion.png)
+
+### Weed Detection
+![Weed Results](docs/results/weed_results.png)
+
+### Food Quality
+![Food Results](docs/results/food_results.png)
+
 ## License
 
 Proprietary - A.V.A. (Agriculture • Video • AI)
