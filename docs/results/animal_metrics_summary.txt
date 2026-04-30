@@ -1,0 +1,15 @@
+Animal Detection Model - YOLOv8
+
+Final Epoch Metrics:
+- Precision: 0.94118
+- Recall: 0.90102
+- mAP50: 0.95353
+- mAP50-95: 0.65041
+
+Loss Values:
+- Box Loss: 1.1047
+- Class Loss: 0.52731
+- DFL Loss: 1.20345
+
+Source:
+D:\ava_data\animal_models\animal_detector_v14\results.csv
