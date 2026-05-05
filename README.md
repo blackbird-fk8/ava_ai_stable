@@ -1,6 +1,6 @@
-# SCARE AI - Smart Camera Alert Response Engine
+# AVA - Agriculture. Video. AI.
 
-A real-time computer vision system that monitors camera feeds for intruders, animals, and known persons, triggering alarms and capturing event photos.
+A real-time computer vision system that monitors camera feeds for intruders, animals, and known persons, triggering alarms, targeted weed spraying and capturing event photos.
 
 ## Features
 
